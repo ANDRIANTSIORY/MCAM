@@ -1,0 +1,16 @@
+FIA data from Nørgaard & Ridder, Chemometrics & 
+Intelligent Laboratory Systems, 1994, 23, 107-114
+
+X contains the 12 x 100 x 89 spectral FIA data in 
+a 12 x 8900 matrix. To convert to a three-way array 
+in MATLAB 5 and higher type <X = reshape(X,DimX)>.
+The concentrations of the three analytes are provided
+in y
+
+Xs is a set of three pure samples averaged from 
+triplicate measurements. ys holds the concentrations
+
+DimX gives the dimensions of the three-way array
+
+For further info see above reference or
+http://www.models.kvl.dk/users/rasmus/
