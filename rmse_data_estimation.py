@@ -3,6 +3,7 @@
 import numpy as np
 import tensorly as tl
 import itertools
+import sys
 
 class Mse_multiway_evaluation():
 	def __init__(self, data, clusterListe):
@@ -62,9 +63,13 @@ class Mse_multiway_evaluation():
 	def rmse_difference_of_two_tensors(self, T1, T2):
 		r1 = T1.shape
 		r2 = T2.shape
-		T1 = T1 - T2
-		T1 = T1 * T1
-		sum = np.sum(T1)
+		if r1 == r2 :
+			T1 = T1 - T2
+			T1 = T1 * T1
+			sum = np.sum(T1) / (r1[0] * r1[1] *r1[2])
+		else :
+			print("The tensors must have the same shape")
+			sys.exit(1)
 		return np.sqrt(sum)
 
 
