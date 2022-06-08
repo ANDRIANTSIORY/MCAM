@@ -2,7 +2,7 @@
 from sklearn.metrics import davies_bouldin_score
 from sklearn import metrics
 import numpy as np
-import multiway_via_spectral as multiwayvs
+import multiway_via_spectral_v2 as multiwayvs
 import matplotlib.pyplot as plt
 from sklearn.cluster import  SpectralClustering
 from tensorly.decomposition import CP, Tucker
@@ -18,7 +18,7 @@ import itertools
 
 
 
-def multiway_via_spec_dec(data, core_size, cp_rank, real, cp_tucker = False, tbm = False):    
+def multiway_via_spec_dec(data, core_size, cp_rank, real, cp_tucker = False, tbm = False, mse=False):    
     result_ariSLICE_hac, result_ariSLICEk_means = [], []
     multiway = multiwayvs.Multiway_via_spectral(data, k=core_size) 
     estimation = multiway.get_result()
@@ -43,12 +43,16 @@ def multiway_via_spec_dec(data, core_size, cp_rank, real, cp_tucker = False, tbm
 
     # evaluation
     # build the membershipe matrices
-    difference_s = diffMse.Mse_multiway_evaluation(data, spectral)
+    if mse == True:
+        difference_s = diffMse.Mse_multiway_evaluation(data, spectral)
 
-    difference_a = diffMse.Mse_multiway_evaluation(data, affProp)
+        difference_a = diffMse.Mse_multiway_evaluation(data, affProp)
 
-    result.append( (ari_s, nmi_s, difference_s.result) )
-    result.append( (ari_a, nmi_a, difference_a.result) )
+        result.append( (ari_s, nmi_s, difference_s.result) )
+        result.append( (ari_a, nmi_a, difference_a.result) )
+    else :
+        result.append( (ari_s, nmi_s) )
+        result.append( (ari_a, nmi_a) )
 
 
     # CP and Tucker 
@@ -68,13 +72,17 @@ def multiway_via_spec_dec(data, core_size, cp_rank, real, cp_tucker = False, tbm
                 nmi_cp.append(metrics.adjusted_mutual_info_score(real, cluster_cp.labels_))
                 ari_tucker.append(metrics.adjusted_rand_score(real, cluster_tucker.labels_))
                 nmi_tucker.append(metrics.adjusted_mutual_info_score(real, cluster_tucker.labels_))
+
+        if mse == True :
     
-        difference_tucker = diffMse.Mse_multiway_evaluation(data, res_tucker)
-        difference_cp = diffMse.Mse_multiway_evaluation(data, res_cp)
+            difference_tucker = diffMse.Mse_multiway_evaluation(data, res_tucker)
+            difference_cp = diffMse.Mse_multiway_evaluation(data, res_cp)
 
-        result.append( (ari_tucker,nmi_tucker, difference_tucker.result) )
-        result.append( (ari_cp, nmi_cp, difference_cp.result) )
-
+            result.append( (ari_tucker,nmi_tucker, difference_tucker.result) )
+            result.append( (ari_cp, nmi_cp, difference_cp.result) )
+        else :
+            result.append( (ari_tucker,nmi_tucker) )
+            result.append( (ari_cp, nmi_cp) )
 
     if tbm == True :
         # TBM
@@ -93,9 +101,13 @@ def multiway_via_spec_dec(data, core_size, cp_rank, real, cp_tucker = False, tbm
             if real != []:
                 ari.append(metrics.adjusted_rand_score(real, a))
                 nmi_tbm.append(metrics.adjusted_mutual_info_score(real, a))
-        difference_tbm = diffMse.Mse_multiway_evaluation(data, res_TBM)
 
-        result.append( (ari, nmi_tbm , difference_tbm.result) )
+        if mse == True :
+            difference_tbm = diffMse.Mse_multiway_evaluation(data, res_TBM)
+
+            result.append( (ari, nmi_tbm , difference_tbm.result) )
+        else :
+            result.append( (ari, nmi_tbm ) )
         
 
     return result

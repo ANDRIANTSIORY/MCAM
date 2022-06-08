@@ -1,27 +1,27 @@
-from sklearn import preprocessing
+
 import scipy.linalg as la
 from sklearn.preprocessing import normalize
 import numpy as np
-from sklearn.decomposition import PCA
 import sys
 import heapq
-from statistics import mode
-from sklearn.cluster import KMeans,AgglomerativeClustering,SpectralClustering,DBSCAN,AffinityPropagation
-from sklearn.mixture import GaussianMixture
-from sklearn.decomposition import SparsePCA
+from sklearn.cluster import SpectralClustering,AffinityPropagation
+
+# Arguments
+# tensor: the datasets 
+# k : list of the number of clusters in each mode
+# norm : normalization of the matrix slices
 
 
-# I remove the norm 
 class Multiway_via_spectral():
-    def __init__(self, tensor, k=[10,10,10], norm = "normalized"):
-        self._number = k                             #LIM == NUMBER
+    def __init__(self, tensor, k=[10,10,10], norm = "normalize"):
+        self._number = k                            
         self._tensor = tensor
         self._dim = tensor.shape
         self._norm = norm
         self._result, self._c_prime, self._r_ = self.method()
 
 
-    def get_result(self):     # V^tV
+    def get_result(self):    
         return self._result
 
     def get_c_prime(self):
@@ -31,12 +31,11 @@ class Multiway_via_spectral():
         return self._r_
 
     def normed_and_covariance(self, M):
-        #M = M / 255   # we add it only for mnist dataset
-        if self._norm == "centralized":
+        if self._norm == "centralize":
             m = np.mean(M, axis=0).reshape(1,-1)  # mean of each column
             M = M - m
             M = (1/len(M[0,:])) * ((M.T).dot(M))
-        elif self._norm == "normalized":
+        elif self._norm == "normalize":
             M = normalize(M, axis=0)
             M = (M.T).dot(M)
         else:
@@ -49,63 +48,31 @@ class Multiway_via_spectral():
         return np.argmax(intermediate) + 1   # the index starts with zero (we add 1 to make it from 1)
 
     def clustering(self, data, d):
-        result_spectral = SpectralClustering(n_clusters=d, assign_labels='discretize', random_state=0).fit(data)
-        result_affinityProp = AffinityPropagation(random_state=20).fit(data)
+        result_spectral = SpectralClustering(n_clusters=d,affinity='precomputed', assign_labels='discretize', random_state=0).fit(data)
+        result_affinityProp = AffinityPropagation(damping=0.5,random_state=None).fit(data)
+        #print(len(set(result_affinityProp.labels_)))
         return result_spectral.labels_, result_affinityProp.labels_
 
-    def clusteringMatrix(self, Listd, method = "AgglomerativeClustering", epsilon = 1, min_point = 2):
-        data = self._c_prime[1]
-        result = []
-        for i in range(3):
-            if method == "AgglomerativeClustering" :
-                result1 = AgglomerativeClustering(n_clusters=Listd[i], affinity='euclidean', linkage='ward').fit(data[i])
-                result.append(result1.labels_)
-
-            if method == "SpectralClustering" :
-                result1 = SpectralClustering(n_clusters=Listd[i], assign_labels='discretize', random_state=0).fit(data[i])
-                result.append(result1.labels_)
-
-            if method == "KMeans" :
-                result1 =  KMeans(n_clusters=Listd[i], random_state=0).fit(data[i])
-                result.append(result1.labels_)
-
-            if method == "AffinityPropagation" :
-                result1 = AffinityPropagation(damping = 0.7, random_state=50).fit(data[i])
-                result.append(result1.labels_)
-
-            if method == "DBSCAN" :
-                result1 = DBSCAN(eps=epsilon, min_samples=min_point).fit(data[i])
-                result.append(result1.labels_)
-
-
-        return result
 
 
 
     def method(self):
 
-        l = 3     # len(self._dim)  
-        # the eigenvalue and eigenvector of each slice for each dimension
-        # result use only k-means
-        result = [] # contain all the index where is the gap of eigenvalue for each slice ( verification of the sinTheta theorem)
-        store_C_prime = []
-        first_C_prime = []   # store the C_prime for the top eigenvector
-        r_ = []
-        for i in range(3):   #  ONLY FOR THE FIRST DIMENSION
+        l = 3     # nomber of mode inside a 3-order tensor
+
+        result = [] # contain the  clustering labels of the three modes
+        store_C_prime = []  # list of the similarity matrices
+        r_ = []      # r
+        for i in range(3):  
             if i == 0 :
                 e0 = []
                 n_i = []
                 for k in range(self._dim[0]):
                     frontal =  self.normed_and_covariance(self._tensor[k,:,:])
                     w, v = la.eig(frontal)
-                    transformer = SparsePCA(n_components=2, random_state=0)
-                    transformer.fit(frontal)
-                    pc = transformer.components_
                     w , v = w.real, v.real
                     p = heapq.nlargest(len(w), range(len(w)), w.take) # the index of the all eigenvalue in decreasing order
                     w = w[p]    # to make it decreasing order
-                    v[:,:2] = pc.T
-                    w[:2] = 1
                     e0.append([w[p], v[:,p]]) # e0 is a list, and each element of which is a pair s.t. 
                                                 # the first element is the eigenvalue of frontal
                                                 # the second is the eigenvector of frontal
@@ -115,13 +82,13 @@ class Multiway_via_spectral():
                     n_i.append(self.number_eigenspace(w))
 
                 # determine r
-                #r = mode(n_i)    # most frequent number in n_i
+
                 r = max(n_i)
-                r = 2  # only for mnist data
+
                 r_.append(r)
 
                 # build the matrix C prime
-                V = np.zeros((len(e0[0][1][:,0]), len(e0)))  # initialization of matrix V
+                V = np.zeros((len(e0[0][1][:,0]), len(e0)))  # initialization of the matrix V
                 C_prime = np.zeros((len(e0), len(e0)))
 
                 k=0   # compteur of lambda_max and r
@@ -135,21 +102,16 @@ class Multiway_via_spectral():
                         s +=1
     
                     lambda_max.append( np.max(Lambda) )  # the max among the lambda
-                    # lambda_max.append( np.argmax(Lambda) )    # index of the maximum among the lambda
-                    #V = V / lambda_max[k]
+
                     c = (V.T).dot(V) 
                     C_prime += np.abs(c)
 
-                    #--the top eigenvector-----
-                    if k==0 :
-                        first_C_prime.append(C_prime / np.max(Lambda))
-                    #--------------------------
                     k += 1
 
                 lambda_max_square = [lam**2 for lam in lambda_max] 
                 
                 C_prime = C_prime / np.sum(lambda_max_square)
-                result.append(self.clustering(C_prime,  self._number[i]))  # result of two methods of clustering
+                result.append(self.clustering(C_prime,  self._number[i]))  # result of two clustering  methods (Affinity Propagation and Spectral Clustering)
                 store_C_prime.append(C_prime)      #store C_prime
 
 
@@ -160,15 +122,14 @@ class Multiway_via_spectral():
                     horizontale = self.normed_and_covariance(self._tensor[:,k,:])
                     w, v = la.eig(horizontale)
                     w , v = w.real, v.real
-                    p = heapq.nlargest(len(w), range(len(w)), w.take) # the index of the top self._lim of the eigenvalue w, it is in decreasing order
+                    p = heapq.nlargest(len(w), range(len(w)), w.take) 
                     w = w[p] 
-                    e1.append([w[p], v[:,p]]) # the same structure as e0
+                    e1.append([w[p], v[:,p]]) 
 
-                    # determination of significant drop (determine n_i)
                     n_i.append(self.number_eigenspace(w))
 
-                # determine r
-                r = max(n_i)  # most frequent number in n_i
+                # determination of r
+                r = max(n_i)  
                 r_.append(r)
 
                 V = np.zeros((len(e1[0][1][:,0]), len(e1))) 
@@ -180,18 +141,14 @@ class Multiway_via_spectral():
                     Lambda = []
                     s = 0
                     for j in e1:
-                        V[:,s] = (j[0][k] * j[1][:,k] )  # product of eigenvalue and eigenvector of slice k
+                        V[:,s] = (j[0][k] * j[1][:,k] )  # product of eigenvalue and eigenvector of the k-th slice
                         Lambda.append(j[0][k])
                         s +=1
 
                     lambda_max.append(np.max(Lambda))
                     c   = (V.T).dot(V)
-                    C_prime += np.abs(c)  # abs(C)
+                    C_prime += np.abs(c)  
 
-                    #--the top eigenvector-----
-                    if k==0 :
-                        first_C_prime.append(C_prime / np.max(Lambda))
-                    #--------------------------
                     k += 1
 
                 lambda_max_square = [lam**2 for lam in lambda_max]
@@ -216,7 +173,7 @@ class Multiway_via_spectral():
                     n_i.append(self.number_eigenspace(w))
 
                 # determine r
-                r = max(n_i)  # most frequent number in n_i
+                r = max(n_i)  
                 r_.append(r)
 
                 V = np.zeros((len(e2[0][1][:,0]), len(e2))) 
@@ -236,10 +193,6 @@ class Multiway_via_spectral():
                     c = (V.T).dot(V) 
                     C_prime += np.abs(c)    # abs(C)
 
-                    #--the top eigenvector-----
-                    if k==0 :
-                        first_C_prime.append(C_prime / np.max(Lambda))
-                    #--------------------------
                     k += 1
 
                 lambda_max_square = [lam**2 for lam in lambda_max]
@@ -248,6 +201,6 @@ class Multiway_via_spectral():
                 store_C_prime.append(C_prime)
 
 
-        return result, (first_C_prime, store_C_prime), r_  # we take C_prime in case we need the similarity matrix to test it with other algorithm
+        return result,  store_C_prime, r_  # we take C_prime in case we need the similarity matrix to test it with other algorithm
 
 
