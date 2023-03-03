@@ -13,7 +13,7 @@ import itertools
 # k : number of clusters in each mode for the "second data"
 
 
-class Generate_tensorBiclustering():
+class Generate_tensor():
     def __init__(self, m=0, n1=0, n2=0, k1=1, k2=1, k3=1, cluster = 1, gamma = 1, k = 0):
         self._m = m
         self._n1 = n1
